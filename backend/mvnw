@@ -1,0 +1,14 @@
+#!/bin/sh
+set -e
+BASE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+MAVEN_VERSION=3.9.9
+MAVEN_DIR="$BASE_DIR/.mvn/apache-maven-$MAVEN_VERSION"
+ARCHIVE="$BASE_DIR/.mvn/apache-maven-$MAVEN_VERSION-bin.zip"
+if [ ! -x "$MAVEN_DIR/bin/mvn" ]; then
+  command -v curl >/dev/null 2>&1 || { echo "curl is required to download Maven"; exit 1; }
+  curl -fsSL "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/$MAVEN_VERSION/apache-maven-$MAVEN_VERSION-bin.zip" -o "$ARCHIVE"
+  command -v unzip >/dev/null 2>&1 || { echo "unzip is required"; exit 1; }
+  unzip -q -o "$ARCHIVE" -d "$BASE_DIR/.mvn"
+fi
+exec "$MAVEN_DIR/bin/mvn" "$@"
+

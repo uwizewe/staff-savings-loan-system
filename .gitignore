@@ -1,0 +1,11 @@
+backend/target/
+backend/data/
+backend/.mvn/apache-maven-*/
+backend/.mvn/apache-maven-*-bin.zip
+frontend/node_modules/
+frontend/dist/
+.idea/
+.vscode/
+*.iml
+*.log
+.DS_Store
