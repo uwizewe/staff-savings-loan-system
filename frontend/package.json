@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test src/features/reports/services/reportData.test.js",
+    "check:structure": "node ../scripts/check-structure.cjs"
   },
   "dependencies": {
     "lucide-react": "1.31.0",

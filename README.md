@@ -2,6 +2,13 @@
 
 A practical full-stack application for a staff association. The project uses a reusable ReactJS frontend and a Spring Boot REST API.
 
+## Source organization
+
+The backend and frontend are organized by feature. See [Project structure](docs/PROJECT_STRUCTURE.md)
+for package responsibilities, extension points, and development commands.
+Run `npm run check:structure` in `frontend/` to check package paths and imports.
+After changing Java package locations, restart the backend with a clean build to avoid stale classes.
+
 ## Included modules
 
 - Secure sign-in and four roles: Member, Initiator, Approver, Administrator
@@ -36,7 +43,7 @@ cd backend
 ./mvnw spring-boot:run
 ```
 
-The API runs at `http://localhost:8081`. Swagger UI is at `http://localhost:8081/swagger-ui.html`.
+The API runs at `http://localhost:8091`. Swagger UI is at `http://localhost:8091/swagger-ui.html`.
 
 The default H2 data is stored under `backend/data/`, so it remains after a restart.
 
@@ -50,7 +57,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`.
+Open `http://localhost:8090`.
 
 ## Demo accounts
 
