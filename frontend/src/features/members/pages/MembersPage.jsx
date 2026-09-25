@@ -1,6 +1,7 @@
+import ActionMenu from '../../../components/ui/ActionMenu.jsx';
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Pencil, Plus, UserRoundCheck } from "lucide-react";
-import { post, put } from "../../../services/api.js";
+import { BookOpen, Pencil, Plus, UserRoundCheck, Wallet, Landmark, History } from "lucide-react";
+import { get, post, put } from "../../../services/api.js";
 import { Button, DataTable, ErrorState, Field, inputClass, Loading, Modal, MoneyCell, PageHeader, SearchBox, StatusBadge, textareaClass, useNotice } from "../../../components/ui/index.jsx";
 import { useApiData } from "../../../hooks/useApiData.js";
 import { date, routeTo, today } from "../../../utils/index.js";
@@ -63,7 +64,7 @@ export default function MembersPage({ route }) {
 
   return (
     <>
-      <PageHeader title={view === "statements" ? "Member statements" : "Members"} description="Central member register with savings and outstanding loan positions." actions={<Button onClick={() => { setEditing("new"); setForm(blank); }}><Plus size={16} />Add member</Button>} />
+      <PageHeader title="Members" description="Register members, update their details, and open savings, loans or statements from one place." actions={<Button onClick={() => { setEditing("new"); setForm(blank); }}><Plus size={16} />Add member</Button>} />
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <SearchBox value={search} onChange={setSearch} placeholder="Search name, ID or department" />
         <select className={`${inputClass} sm:w-48`} value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All memberships</option><option>ACTIVE</option><option>DISABLED</option><option>LEFT</option></select>
@@ -77,12 +78,24 @@ export default function MembersPage({ route }) {
         { key: "outstandingLoans", label: "Outstanding", render: (row) => <MoneyCell value={row.outstandingLoans} /> },
         { key: "membershipStatus", label: "Membership", render: (row) => <StatusBadge value={row.membershipStatus} /> },
         { key: "riskStatus", label: "Risk", render: (row) => <StatusBadge value={row.riskStatus} /> },
-        { key: "actions", label: "Actions", render: (row) => <div className="flex gap-1"><Button size="sm" variant="ghost" title="Edit" onClick={() => edit(row)}><Pencil size={15} /></Button><Button size="sm" variant="ghost" title="Statement" onClick={() => routeTo(`statement?id=${row.id}`)}><BookOpen size={15} /></Button></div> },
+        { key: "actions", label: "Action", render: row => <ActionMenu label={`Actions for ${row.fullName}`} title={row.fullName} subtitle={row.memberCode} items={[
+          {key:'savings', label:'Savings Dashboard', description:'Balance and savings history', icon:Wallet},
+          {key:'active', label:'Active Loan Dashboard', description:'Installments and repayments', icon:Landmark, tone:'bg-blue-50 text-blue-600'},
+          {key:'closed', label:'Closed Loans', description:'Completed loan history', icon:History, tone:'bg-violet-50 text-violet-600'},
+          {key:'statement', label:'Member Statement', description:'View and export statements', icon:BookOpen, tone:'bg-amber-50 text-amber-600'},
+          {key:'edit', label:'Edit Member', description:'Update member information', icon:Pencil, tone:'bg-slate-100 text-slate-600', separator:true},
+        ]} onAction={async action => {
+          if(action==='savings') routeTo(`savings?view=dashboard&id=${row.id}`);
+          if(action==='closed') routeTo(`loans?view=closed&memberId=${row.id}`);
+          if(action==='edit') edit(row);
+          if(action==='statement') routeTo(`reports?page=member-statement&memberId=${row.id}`);
+          if(action==='active') { try { const loans=await get(`/loans?memberId=${row.id}&status=ACTIVE`); if(loans.length===1) routeTo(`loans?view=dashboard&id=${loans[0].id}&from=active&memberId=${row.id}`); else routeTo(`loans?view=active&memberId=${row.id}`); } catch(error) { notify(error.message,'error'); } }
+        }}/> },
       ]} />
 
       <Modal open={Boolean(editing)} onClose={close} title={editing === "new" ? "Register member" : "Update member"} description="Membership and risk status are managed separately." size="lg">
         <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-          <Field label="Registration ID"><input className={inputClass} value={form.memberCode || "Generated automatically (VFC)"} readOnly /></Field>
+          <Field label="Registration ID"><input className={inputClass} value={form.memberCode || "Generated automatically (VFC001, VFC002…)"} readOnly /></Field>
           <Field label="Full name" required><input className={inputClass} value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required /></Field>
           <Field label="Department" required><input className={inputClass} value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} required /></Field>
           <Field label="Phone number" required><input className={inputClass} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required /></Field>
@@ -99,4 +112,5 @@ export default function MembersPage({ route }) {
     </>
   );
 }
+
 

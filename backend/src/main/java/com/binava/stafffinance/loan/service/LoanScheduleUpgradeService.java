@@ -9,10 +9,26 @@ import org.springframework.transaction.annotation.Transactional;
 public class LoanScheduleUpgradeService {
     private final LoanRepository loans;
     private final InstallmentScheduleService schedules;
-    public LoanScheduleUpgradeService(LoanRepository loans,InstallmentScheduleService schedules) { this.loans=loans; this.schedules=schedules; }
+    private final com.binava.stafffinance.audit.service.AuditService audit;
+    public LoanScheduleUpgradeService(LoanRepository loans,InstallmentScheduleService schedules,com.binava.stafffinance.audit.service.AuditService audit) { this.loans=loans; this.schedules=schedules; this.audit=audit; }
     @Transactional
     public void upgrade() {
         for(var loan:loans.findAllByOrderByApplicationDateDescCreatedAtDesc()) {
+            // Existing independently approved loans follow the same activation flow as new approvals.
+            if(loan.loanStatus==com.binava.stafffinance.loan.entity.LoanStatus.APPROVED
+                    && loan.workflowStatus==com.binava.stafffinance.approval.entity.WorkflowStatus.APPROVED) {
+                loan.disbursementDate=loan.actionedAt==null?java.time.LocalDate.now():loan.actionedAt.atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+                loan.disbursementReference="APPROVAL-"+loan.applicationNumber;
+                if(schedules.active(loan).isEmpty()) {
+                    var version=schedules.propose(loan,loan.approvedAmount,loan.repaymentMonths,
+                        loan.firstInstallmentDate==null?loan.disbursementDate.plusMonths(1):loan.firstInstallmentDate,
+                        "APPROVED_TERMS",loan.disbursementDate,BigDecimal.ZERO,"Activation of previously approved loan",loan.createdBy);
+                    schedules.activate(loan,version,loan.actionedBy,loan.decisionRemarks);
+                }
+                loan.loanStatus=com.binava.stafffinance.loan.entity.LoanStatus.ACTIVE;
+                loan.committedMemberId=loan.member.id;
+                audit.log(loan.actionedBy,"ACTIVATE","LOAN",loan.id,loan.applicationNumber,"APPROVED","ACTIVE","Automatic activation under approval-based loan workflow");
+            }
             var rows=schedules.active(loan);
             if(rows.isEmpty()) continue;
             if(loan.originalPrincipal==null) loan.originalPrincipal=loan.requestedAmount;

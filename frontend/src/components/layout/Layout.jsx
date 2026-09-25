@@ -61,7 +61,7 @@ export default function Layout({ children, route }) {
   })), [user.role]);
 
   const go = (nextRoute) => { routeTo(nextRoute); setMobileOpen(false); };
-  const title = visibleMenu.flatMap((item) => item.children || [item]).find((item) => item.route === route)?.label || visibleMenu.find((item) => item.route === baseRoute || item.children?.some((child) => child.route.split("?")[0] === baseRoute))?.label || "VFR Association";
+  const title = (baseRoute === "loans" && new URLSearchParams(route.split("?")[1]).get("view") === "dashboard" ? "Loan Dashboard" : null) || (baseRoute === "savings" && new URLSearchParams(route.split("?")[1]).get("view") === "dashboard" ? "Savings Dashboard" : null) || visibleMenu.flatMap((item) => item.children || [item]).find((item) => item.route === route)?.label || visibleMenu.find((item) => item.route === baseRoute || item.children?.some((child) => child.route.split("?")[0] === baseRoute))?.label || "VFR Association";
 
   const sidebar = (
     <aside className={`workspace-sidebar flex h-full flex-col border-r border-slate-200 bg-white text-slate-700 transition-all ${collapsed ? "w-[84px]" : "w-[272px]"}`}>
@@ -84,9 +84,9 @@ export default function Layout({ children, route }) {
                 <Icon size={19} className="shrink-0" />
                 {!collapsed && <><span className="flex-1">{item.label}</span><ChevronDown size={15} className={`transition ${open ? "rotate-180" : ""}`} /></>}
               </button>
-              {open && !collapsed && <div className="ml-5 mt-1 space-y-0.5 border-l border-slate-200 pl-4">{item.children.map((child) => {
+              {open && !collapsed && <div className="ml-5 mt-1 space-y-0.5 border-l border-slate-200 pl-4">{item.children.map((child, childIndex) => {
                 const isActive = currentRoute() === child.route || (child.route === baseRoute && route === child.route);
-                return <button key={child.route} onClick={() => go(child.route)} className={`block w-full rounded-lg px-3 py-2 text-left text-xs transition ${isActive ? "bg-teal-50 font-semibold text-teal-800" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}>{child.label}</button>;
+                return <div key={child.route}>{child.group && (childIndex === 0 || child.group !== item.children[childIndex - 1].group) && <p className="px-3 pb-1 pt-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">{child.group}</p>}<button aria-current={isActive ? "page" : undefined} onClick={() => go(child.route)} className={`block w-full rounded-lg px-3 py-2 text-left text-xs transition ${isActive ? "bg-teal-50 font-semibold text-teal-800" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}>{child.label}</button></div>;
               })}</div>}
             </div>
           );
@@ -126,9 +126,9 @@ export default function Layout({ children, route }) {
         </header>
         <main className="animate-in mx-auto max-w-[1600px] p-4 pb-28 sm:p-6 sm:pb-24 lg:p-8 lg:pb-24">{children}</main>
         <footer className={`no-print fixed inset-x-0 bottom-0 z-20 flex min-h-14 flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-slate-200 bg-white/95 px-4 py-3 text-center text-xs leading-5 text-slate-500 backdrop-blur-xl ${collapsed ? "lg:left-[84px]" : "lg:left-[272px]"}`}>
-          <span>Developed by <span className="font-semibold text-slate-700">uwizewe Jean 'amour</span></span>
+          <span>Developed by <span className="font-semibold text-slate-700">UWIZEWE JEAN D'AMOUR </span></span>
           <span aria-hidden="true" className="text-slate-300">·</span>
-          <a href="tel:+2550788672782" className="rounded font-medium text-teal-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600">+2550788672782</a>
+          <a href="tel:+250788672782" className="rounded font-medium text-teal-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600">+2550788672782</a>
         </footer>
       </div>
       <Modal open={profileOpen} onClose={() => setProfileOpen(false)} title="My profile" description="Your account details and workspace access." size="md">

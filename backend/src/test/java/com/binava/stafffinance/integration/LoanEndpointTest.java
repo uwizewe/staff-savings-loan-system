@@ -21,6 +21,34 @@ class LoanEndpointTest {
     @Autowired MockMvc mvc;
 
     @Test
+    @WithMockUser(username = "initiator", roles = "INITIATOR")
+    void reportsSnapshotIncludesNamesAndAllocationHistory() throws Exception {
+        mvc.perform(get("/api/reports/snapshot")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.organization").value("VFR Association"))
+                .andExpect(jsonPath("$.generatedAt").isNotEmpty())
+                .andExpect(jsonPath("$.members[0].fullName").isNotEmpty())
+                .andExpect(jsonPath("$.repayments[0].memberName").isNotEmpty())
+                .andExpect(jsonPath("$.scheduleVersions").isMap())
+                .andExpect(jsonPath("$.repaymentDetails").isMap())
+                .andExpect(jsonPath("$.allocations").isArray());
+        mvc.perform(get("/api/reports/audit")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "member", roles = "MEMBER")
+    void membersCannotReadAssociationReportsOrAudit() throws Exception {
+        mvc.perform(get("/api/reports/snapshot")).andExpect(status().isForbidden());
+        mvc.perform(get("/api/reports/audit")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "admin", roles = "ADMIN")
+    void administratorsCanReadAuditReport() throws Exception {
+        mvc.perform(get("/api/reports/audit")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.audits").isArray());
+    }
+
+    @Test
     @WithMockUser(username = "admin", roles = "ADMIN")
     void administrationRoutesRemainAvailableAfterFeatureSplit() throws Exception {
         for (String path : new String[]{"/api/admin/users", "/api/admin/categories", "/api/admin/settings", "/api/admin/permissions", "/api/admin/audit-logs"}) {

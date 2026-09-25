@@ -9,6 +9,7 @@ export default function SavingsTable({ rows, canSubmit, onSubmit, canApprove, ba
     { key: "reference", label: "Reference", className: "font-semibold text-teal-800" },
     { key: "memberName", label: "Member" },
     { key: "savingType", label: "Type" },
+    { key: "description", label: "Comment", className: "min-w-48 max-w-sm !whitespace-normal" },
     { key: "amount", label: "Amount", render: (row) => <MoneyCell value={row.amount} /> },
     { key: "createdBy", label: "Recorded by" },
     { key: "status", label: "Status", render: (row) => <StatusBadge value={row.status} /> },

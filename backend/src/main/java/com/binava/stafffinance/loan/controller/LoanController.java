@@ -1,7 +1,7 @@
 package com.binava.stafffinance.loan.controller;
 
 import com.binava.stafffinance.approval.dto.DecisionRequest;
-import com.binava.stafffinance.loan.dto.DisbursementRequest;
+
 import com.binava.stafffinance.loan.dto.LoanDecisionRequest;
 import com.binava.stafffinance.loan.dto.LoanRequest;
 import com.binava.stafffinance.loan.dto.LoanView;
@@ -59,12 +59,6 @@ public class LoanController {
     @PreAuthorize("hasAnyRole('APPROVER','ADMIN')")
     public LoanView reject(@PathVariable Long id, @RequestBody DecisionRequest request) {
         return service.reject(id, request);
-    }
-
-    @PostMapping("/{id}/disburse")
-    @PreAuthorize("hasAnyRole('INITIATOR','ADMIN')")
-    public LoanView disburse(@PathVariable Long id, @Valid @RequestBody DisbursementRequest request) {
-        return service.disburse(id, request);
     }
 
     @GetMapping("/{id}/schedule-history")

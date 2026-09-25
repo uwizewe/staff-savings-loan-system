@@ -1,3 +1,4 @@
+import { reportGroups } from '../features/reports/services/reportCatalog.js';
 import {
   BarChart3, BookOpenCheck, ChevronDown, CircleDollarSign, ClipboardCheck,
   Coins, FileBarChart, Gauge, Landmark, LogOut, Menu, Settings, ShieldCheck,
@@ -6,27 +7,21 @@ import {
 
 export const menu = [
   { label: "Dashboard", icon: Gauge, route: "dashboard", roles: ["MEMBER", "INITIATOR", "APPROVER", "ADMIN"] },
-  {
-    label: "Members", icon: Users, roles: ["INITIATOR", "APPROVER", "ADMIN"], children: [
-      { label: "All members", route: "members" },
-      { label: "Add member", route: "members?view=add", roles: ["INITIATOR", "ADMIN"] },
-      { label: "Member statements", route: "members?view=statements" },
-    ],
-  },
+  { label: "Members", icon: Users, route: "members", roles: ["INITIATOR", "APPROVER", "ADMIN"] },
   {
     label: "Savings", icon: Coins, roles: ["MEMBER", "INITIATOR", "APPROVER", "ADMIN"], children: [
-      { label: "Savings history", route: "savings?tab=history" },
-      { label: "Monthly savings", route: "savings?tab=monthly", roles: ["INITIATOR", "APPROVER", "ADMIN"] },
-      { label: "Individual savings", route: "savings?tab=individual", roles: ["INITIATOR", "ADMIN"] },
-      { label: "Withdrawals", route: "savings?tab=withdrawal", roles: ["INITIATOR", "ADMIN"] },
+      { label: "Members Saving", route: "savings?view=members" },
+      { label: "Monthly Saving", route: "savings?view=monthly", roles: ["INITIATOR", "APPROVER", "ADMIN"] },
+      { label: "Savings History", route: "savings?view=history" },
     ],
   },
   {
     label: "Loans", icon: Landmark, roles: ["MEMBER", "INITIATOR", "APPROVER", "ADMIN"], children: [
-      { label: "Loan applications", route: "loans?view=applications" },
-      { label: "Active loans", route: "loans?view=active" },
-      { label: "Loan repayments", route: "loans?view=repayments" },
-      { label: "Monthly repayments", route: "loans?view=monthly", roles: ["INITIATOR", "APPROVER", "ADMIN"] },
+      { label: "Loan Application", route: "loans?view=applications" },
+      { label: "Monthly Loan", route: "loans?view=monthly", roles: ["INITIATOR", "APPROVER", "ADMIN"] },
+      { label: "Active Loan", route: "loans?view=active" },
+      { label: "Closed Loan", route: "loans?view=closed" },
+      { label: "Loan Repayment History", route: "loans?view=repayments" },
     ],
   },
   {
@@ -37,18 +32,13 @@ export const menu = [
     ],
   },
   { label: "Approvals", icon: ClipboardCheck, route: "approvals", roles: ["APPROVER", "ADMIN"] },
-  { label: "Reports", icon: FileBarChart, route: "reports", roles: ["INITIATOR", "APPROVER", "ADMIN"] },
-  {
-    label: "Administration", icon: Settings, roles: ["ADMIN"], children: [
-      { label: "Users", route: "admin?tab=users" },
-      { label: "Roles & permissions", route: "admin?tab=roles" },
-      { label: "Categories", route: "admin?tab=categories" },
-      { label: "Audit logs", route: "admin?tab=audit" },
-    ],
-  },
+  { label: "Reports", icon: FileBarChart, roles: ["INITIATOR", "APPROVER", "ADMIN"], children: reportGroups.flatMap(group => group.items.map(([key, label]) => ({label, group: group.label, route: `reports?page=${key}`, ...(key === "audit" ? {roles: ["ADMIN"]} : {})}))) },
   { label: "System Settings", icon: Settings, roles: ["ADMIN"], children: [
-    { label: "Loan Categories", route: "settings?tab=loan-categories" },
-    { label: "General settings", route: "admin?tab=settings" },
+    { label: "Users", route: "settings?page=users" },
+    { label: "Loan Categories", route: "settings?page=loan-categories" },
+    { label: "I&E Categories", route: "settings?page=ie-categories" },
+    { label: "Roles & Permissions", route: "settings?page=roles" },
+    { label: "Audit Logs", route: "settings?page=audit" },
   ] },
-  { label: "My statement", icon: BookOpenCheck, route: "statement", roles: ["MEMBER"] },
+  { label: "Savings Statement", icon: BookOpenCheck, route: "savings?view=dashboard", roles: ["MEMBER"] },
 ];

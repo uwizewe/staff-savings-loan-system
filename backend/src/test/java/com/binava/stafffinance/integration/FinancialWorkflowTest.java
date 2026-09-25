@@ -47,7 +47,7 @@ class FinancialWorkflowTest {
         assertEquals(0, new BigDecimal(expected).compareTo(value.decimalValue()), field);
     }
     long saving(long member, String role, String endpoint, int amount) throws Exception {
-        return call(role, post("/api/savings/" + endpoint), Map.of("memberId", member, "amount", amount, "transactionDate", "2026-09-01"), 200).get("id").asLong();
+        return call(role, post("/api/savings/" + endpoint), Map.of("memberId", member, "amount", amount, "transactionDate", "2026-09-01", "description", "Test savings transaction"), 200).get("id").asLong();
     }
     void decision(String type, long id, boolean approve) throws Exception {
         call("APPROVER", post("/api/approvals/" + type + "/" + id + "/decision"), Map.of("approve", approve, "remarks", "Test review"), 200);
@@ -56,6 +56,8 @@ class FinancialWorkflowTest {
     @Test
     void savingsApprovalRejectionWithdrawalAndSelfApproval() throws Exception {
         long member = member();
+        call("INITIATOR", post("/api/savings/individual"), Map.of("memberId",member,"amount",100,"transactionDate","2026-09-01","description"," "),400);
+        call("INITIATOR", post("/api/savings/withdrawals"), Map.of("memberId",member,"amount",100,"transactionDate","2026-09-01","description","Insufficient savings"),400);
         long saving = saving(member, "INITIATOR", "individual", 1000);
         balance(member, "totalSavings", "0");
         call("INITIATOR", post("/api/savings/" + saving + "/submit"), null, 200);
@@ -78,11 +80,27 @@ class FinancialWorkflowTest {
     }
 
     @Test
+    void withdrawalsRecheckBalanceAtApproval() throws Exception {
+        long member = member();
+        long deposit = saving(member, "INITIATOR", "individual", 1000);
+        call("INITIATOR", post("/api/savings/" + deposit + "/submit"), null, 200);
+        decision("SAVING", deposit, true);
+        long first = saving(member, "INITIATOR", "withdrawals", 700);
+        long second = saving(member, "INITIATOR", "withdrawals", 700);
+        call("INITIATOR", post("/api/savings/" + first + "/submit"), null, 200);
+        call("INITIATOR", post("/api/savings/" + second + "/submit"), null, 200);
+        decision("SAVING", first, true);
+        call("APPROVER", post("/api/approvals/SAVING/" + second + "/decision"), Map.of("approve", true), 400);
+        balance(member, "totalSavings", "300");
+    }
+
+    @Test
     void monthlySavingsMustBeDecidedAsBatch() throws Exception {
         long member = member();
         long batch = call("INITIATOR", post("/api/savings/batches"), Map.of("period", "2026-09", "items", List.of(Map.of("memberId", member, "amount", 120))), 200).get("id").asLong();
         JsonNode batchItems = call("APPROVER", get("/api/savings/batches/" + batch + "/items"), null, 200);
         assertEquals(1, batchItems.size());
+        assertEquals("September 2026 Monthly Saving",batchItems.get(0).get("description").asText());
         assertEquals("Workflow Test Member", batchItems.get(0).get("memberName").asText());
         assertEquals(member, batchItems.get(0).get("memberId").asLong());
         assertEquals(0, new BigDecimal("120").compareTo(batchItems.get(0).get("amount").decimalValue()));
@@ -98,7 +116,7 @@ class FinancialWorkflowTest {
     void categorizedLoanChangesPreservePaidPrincipalAndRequireIndependentApproval() throws Exception {
         long member = member();
         String code = call("INITIATOR", get("/api/members/" + member), null, 200).get("memberCode").asText();
-        assertTrue(code.startsWith("VFC-"));
+        assertTrue(code.matches("VFC[0-9]{3,}"));
         long category = call("ADMIN", post("/api/loan-categories"), Map.of("name", "Test " + UUID.randomUUID(), "annualRate", 12), 200).get("id").asLong();
         Map<String,Object> application = Map.of("memberId", member, "applicationDate", "2026-09-01", "requestedAmount", 1000, "annualInterestRate", 12, "repaymentMonths", 12, "purpose", "Loan changes test");
         long loan = call("INITIATOR", post("/api/loans?categoryId=" + category), application, 200).get("id").asLong();
@@ -106,14 +124,15 @@ class FinancialWorkflowTest {
         call("INITIATOR", post("/api/loans/" + loan + "/submit"), null, 200);
         call("INITIATOR", post("/api/loans"), application, 400);
         decision("LOAN", loan, true);
-        call("INITIATOR", post("/api/loans/" + loan + "/disburse"), Map.of("disbursementDate", "2026-09-01", "reference", "TEST"), 200);
-        long payment = call("INITIATOR", post("/api/loans/repayments"), Map.of("loanId", loan, "amount", 88.85, "paymentDate", "2026-09-02"), 200).get("id").asLong();
+        assertEquals("ACTIVE",call("INITIATOR",get("/api/loans/"+loan),null,200).get("loanStatus").asText());
+        call("INITIATOR",post("/api/loans/"+loan+"/disburse"),Map.of("disbursementDate","2026-09-01","reference","Removed action"),404);
+        long payment = call("INITIATOR", post("/api/loans/repayments"), Map.of("loanId", loan, "amount", 88.85, "paymentDate", java.time.LocalDate.now().toString()), 200).get("id").asLong();
         call("INITIATOR", post("/api/loans/repayments/" + payment + "/submit"), null, 200);
         decision("REPAYMENT", payment, true);
         JsonNode afterPayment = call("INITIATOR", get("/api/loans/" + loan), null, 200);
         assertEquals(0, new BigDecimal("78.85").compareTo(afterPayment.get("paidPrincipal").decimalValue()));
         assertEquals(0, new BigDecimal("10.00").compareTo(afterPayment.get("paidInterest").decimalValue()));
-        Map<String,Object> topUp = Map.of("type", "TOP_UP", "amount", 100, "months", 11, "effectiveDate", "2026-09-03", "remarks", "Additional funds reference TOP1");
+        Map<String,Object> topUp = Map.of("type", "TOP_UP", "amount", 100, "months", 11, "effectiveDate", java.time.LocalDate.now().toString(), "remarks", "Additional funds reference TOP1");
         JsonNode preview = call("INITIATOR", post("/api/loans/" + loan + "/adjustment-preview"), topUp, 200);
         assertEquals(0, new BigDecimal("1021.15").compareTo(preview.get("principal").decimalValue()));
         call("INITIATOR", post("/api/loans/" + loan + "/adjustments"), topUp, 200);
@@ -130,13 +149,13 @@ class FinancialWorkflowTest {
         assertEquals(2,history.size());
         assertEquals("PAID",history.get(1).get("rows").get(0).get("paymentStatus").asText());
         assertEquals(12,history.get(1).get("rows").size());
-        assertEquals("2026-10-03", rows.get(0).get("dueDate").asText());
-        Map<String,Object> reschedule = Map.of("type", "RESCHEDULE", "amount", 0, "months", 18, "effectiveDate", "2026-09-03", "remarks", "Extend term");
+        assertEquals(java.time.LocalDate.now().plusMonths(1).toString(), rows.get(0).get("dueDate").asText());
+        Map<String,Object> reschedule = Map.of("type", "RESCHEDULE", "amount", 0, "months", 18, "effectiveDate", java.time.LocalDate.now().toString(), "remarks", "Extend term");
         call("ADMIN", post("/api/loans/" + loan + "/adjustments"), reschedule, 200);
         call("ADMIN", post("/api/loans/" + loan + "/adjustments/decision"), Map.of("approve", true), 400);
         call("APPROVER", post("/api/loans/" + loan + "/adjustments/decision"), Map.of("approve", true), 200);
         assertEquals(18, call("INITIATOR", get("/api/loans/" + loan + "/schedule"), null, 200).size());
-        Map<String,Object> restructure = Map.of("type", "RESTRUCTURE", "amount", 50, "months", 6, "effectiveDate", "2026-09-03", "remarks", "Additional principal and shorter term");
+        Map<String,Object> restructure = Map.of("type", "RESTRUCTURE", "amount", 50, "months", 6, "effectiveDate", java.time.LocalDate.now().toString(), "remarks", "Additional principal and shorter term");
         call("INITIATOR", post("/api/loans/" + loan + "/adjustments"), restructure, 200);
         call("APPROVER", post("/api/loans/" + loan + "/adjustments/decision"), Map.of("approve", true), 200);
         JsonNode result = call("INITIATOR", get("/api/loans/" + loan), null, 200);
@@ -147,14 +166,13 @@ class FinancialWorkflowTest {
     }
 
     @Test
-    void loanInitiationDisbursementAndPaymentsCloseLoanExactlyOnce() throws Exception {
+    void loanApprovalActivatesAndPaymentsCloseLoanExactlyOnce() throws Exception {
         long member = member();
         long loan = call("INITIATOR", post("/api/loans"), Map.of("memberId", member, "applicationDate", "2026-09-01", "requestedAmount", 1000, "annualInterestRate", 12, "repaymentMonths", 12, "purpose", "Workflow test"), 200).get("id").asLong();
         call("INITIATOR", post("/api/loans/" + loan + "/submit"), null, 200);
         decision("LOAN", loan, true);
-        call("INITIATOR", post("/api/loans/" + loan + "/disburse"), Map.of("disbursementDate", "2026-09-01", "reference", "TEST"), 200);
         balance(member, "outstandingLoans", "1066.19");
-        long payment = call("INITIATOR", post("/api/loans/repayments"), Map.of("loanId", loan, "amount", 100.25, "paymentDate", "2026-09-02"), 200).get("id").asLong();
+        long payment = call("INITIATOR", post("/api/loans/repayments"), Map.of("loanId", loan, "amount", 100.25, "paymentDate", java.time.LocalDate.now().toString()), 200).get("id").asLong();
         call("INITIATOR", post("/api/loans/repayments/" + payment + "/submit"), null, 200);
         balance(member, "outstandingLoans", "1066.19");
         decision("REPAYMENT", payment, true);
@@ -165,10 +183,11 @@ class FinancialWorkflowTest {
         decision("REPAYMENT",finalPayment,true);
         balance(member, "outstandingLoans", "0");
         JsonNode result = call("INITIATOR", get("/api/loans/" + loan), null, 200);
-        assertEquals("COMPLETED", result.get("loanStatus").asText());
+        assertEquals("CLOSED", result.get("loanStatus").asText());
         assertEquals(0, new BigDecimal("1066.19").compareTo(result.get("amountRepaid").decimalValue()));
         JsonNode schedule = call("INITIATOR", get("/api/loans/" + loan + "/schedule"), null, 200);
         assertEquals(12, schedule.size());
         for (JsonNode row : schedule) assertEquals("PAID", row.get("paymentStatus").asText());
     }
 }
+

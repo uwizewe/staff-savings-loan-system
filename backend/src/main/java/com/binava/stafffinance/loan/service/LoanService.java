@@ -10,7 +10,7 @@ import com.binava.stafffinance.common.References;
 import com.binava.stafffinance.config.service.SettingService;
 import com.binava.stafffinance.exception.BusinessException;
 import com.binava.stafffinance.exception.NotFoundException;
-import com.binava.stafffinance.loan.dto.DisbursementRequest;
+
 import com.binava.stafffinance.loan.dto.LoanDecisionRequest;
 import com.binava.stafffinance.loan.dto.LoanRequest;
 import com.binava.stafffinance.loan.dto.LoanView;
@@ -177,7 +177,10 @@ public class LoanService {
         loan.monthlyInstallment = terms.monthlyInstallment();
         loan.outstandingBalance = terms.totalPayable();
         loan.committedMemberId = loan.member.id;
-        loan.loanStatus = LoanStatus.APPROVED;
+        loan.loanStatus = LoanStatus.ACTIVE;
+        // Retain the legacy date field as the activation date for repayment validation.
+        loan.disbursementDate = java.time.LocalDate.now();
+        loan.disbursementReference = "APPROVAL-" + loan.applicationNumber;
         loan.originalPrincipal=principal; loan.originalTerm=months;
         var current=loan.currentScheduleVersionId==null?null:scheduleService.requireVersion(loan.currentScheduleVersionId);
         if(current==null || current.principal.compareTo(principal)!=0 || current.annualRate.compareTo(rate)!=0 || current.term!=months) {
@@ -196,30 +199,6 @@ public class LoanService {
         loan.committedMemberId = null;
         loan.loanStatus = LoanStatus.REJECTED;
         if(loan.currentScheduleVersionId!=null) { var version=scheduleService.requireVersion(loan.currentScheduleVersionId); version.workflowStatus=WorkflowStatus.REJECTED; version.actionedBy=loan.actionedBy; version.actionedAt=loan.actionedAt; version.decisionRemarks=request.remarks(); }
-        return view(loan);
-    }
-
-    @Transactional
-    public LoanView disburse(Long id, DisbursementRequest request) {
-        Loan loan = requireLoan(id);
-        if (loan.workflowStatus != WorkflowStatus.APPROVED || loan.loanStatus != LoanStatus.APPROVED) {
-            throw new BusinessException("Only an approved loan can be disbursed");
-        }
-        if (loan.firstInstallmentDate!=null && request.disbursementDate().isAfter(loan.firstInstallmentDate)) throw new BusinessException("Disbursement cannot be after the first installment date");
-        lockMember(loan.member);
-        assertNoOtherLoan(loan);
-        loan.disbursementDate = request.disbursementDate();
-        loan.disbursementReference = request.reference().trim();
-        loan.committedMemberId = loan.member.id;
-        loan.loanStatus = LoanStatus.ACTIVE;
-        if(scheduleService.active(loan).isEmpty()) {
-            var version=scheduleService.propose(loan,loan.approvedAmount,loan.repaymentMonths,request.disbursementDate().plusMonths(1),"ORIGINAL",request.disbursementDate(),BigDecimal.ZERO,loan.remarks,loan.createdBy);
-            scheduleService.activate(loan,version,loan.actionedBy,loan.decisionRemarks);
-        }
-        AppUser user = auth.currentUser();
-        audit.log(user, "DISBURSE", "LOAN", loan.id, loan.applicationNumber,
-                LoanStatus.APPROVED, LoanStatus.ACTIVE,
-                "Loan disbursed using reference " + loan.disbursementReference);
         return view(loan);
     }
 
@@ -269,7 +248,7 @@ public class LoanService {
         var rows=scheduleService.active(loan);
         if(rows.stream().anyMatch(r->r.principalAmount==null)) throw new BusinessException("Legacy schedule needs principal/interest allocation before changing its terms");
         int remaining=scheduleService.remainingCount(loan);
-        if(request.effectiveDate().isBefore(loan.disbursementDate) || request.effectiveDate().isAfter(java.time.LocalDate.now())) throw new BusinessException("Effective date must be between disbursement and today");
+        if(request.effectiveDate().isBefore(loan.disbursementDate) || request.effectiveDate().isAfter(java.time.LocalDate.now())) throw new BusinessException("Effective date must be between activation and today");
         if(repayments.findByLoanIdOrderByPaymentDateDesc(loan.id).stream().anyMatch(p->p.workflowStatus==WorkflowStatus.PENDING_APPROVAL || p.workflowStatus==WorkflowStatus.DRAFT || (p.workflowStatus==WorkflowStatus.APPROVED && p.paymentDate.isAfter(request.effectiveDate()))))
             throw new BusinessException("Resolve draft/pending repayments and use an effective date after approved payments");
         if((request.type().equals("RESCHEDULE") && request.amount().signum()!=0) || (!request.type().equals("RESCHEDULE") && request.amount().compareTo(new BigDecimal("0.01"))<0)) throw new BusinessException("Invalid additional principal");

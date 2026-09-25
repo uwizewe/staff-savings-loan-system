@@ -1,8 +1,7 @@
 import LoanDashboardPage from '../features/loans/pages/LoanDashboardPage.jsx';
-import LoanCategoriesPage from '../features/settings/pages/LoanCategoriesPage.jsx';
+import SystemSettingsPage from '../features/settings/pages/SystemSettingsPage.jsx';
 import { AlertTriangle } from 'lucide-react';
 import { Button, Card } from "../components/ui/index.jsx";
-import AdminPage from "../features/users/pages/AdminPage.jsx";
 import ApprovalsPage from "../features/approvals/pages/ApprovalsPage.jsx";
 import DashboardPage from "../features/dashboard/pages/DashboardPage.jsx";
 import FinancePage from "../features/finance/pages/FinancePage.jsx";
@@ -39,9 +38,9 @@ export function renderRoute(route, user) {
     case "loans": page = new URLSearchParams(route.split("?")[1]).get("view") === "dashboard" ? <LoanDashboardPage key={route} route={route} /> : <LoansPage route={route} />; break;
     case "finance": page = <FinancePage route={route} />; break;
     case "approvals": page = <ApprovalsPage />; break;
-    case "reports": page = <ReportsPage />; break;
-    case "settings": page = <LoanCategoriesPage />; break;
-    case "admin": page = <AdminPage route={route} />; break;
+    case "reports": page = new URLSearchParams(route.split("?")[1]).get("page") === "audit" && user.role !== "ADMIN" ? <Forbidden /> : <ReportsPage key={route} route={route} />; break;
+    case "settings": page = <SystemSettingsPage route={route} />; break;
+    case "admin": page = <SystemSettingsPage route={route} />; break;
     case "statement": page = <StatementPage route={route} />; break;
     default: page = <NotFound />;
   }

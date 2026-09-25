@@ -42,15 +42,17 @@ public class MemberService {
     private final RepaymentRepository repayments;
     private final AuthService auth;
     private final AuditService audit;
+    private final MemberNumberService numbers;
 
     public MemberService(MemberRepository members, SavingsRepository savings, LoanRepository loans,
-                  RepaymentRepository repayments, AuthService auth, AuditService audit) {
+                  RepaymentRepository repayments, AuthService auth, AuditService audit, MemberNumberService numbers) {
         this.members = members;
         this.savings = savings;
         this.loans = loans;
         this.repayments = repayments;
         this.auth = auth;
         this.audit = audit;
+        this.numbers = numbers;
     }
 
     @Transactional(readOnly = true)
@@ -74,7 +76,7 @@ public class MemberService {
     @Transactional
     public MemberView create(MemberRequest request) {
         Member member = new Member();
-        member.memberCode = "VFC-" + java.util.UUID.randomUUID().toString().replace("-", "").toUpperCase(Locale.ROOT);
+        member.memberCode = numbers.nextCode();
         apply(member, request);
         members.save(member);
         AppUser user = auth.currentUser();

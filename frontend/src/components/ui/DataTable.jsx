@@ -4,7 +4,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Loader2, Se
 const control = 'min-h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm focus-visible:outline-2 focus-visible:outline-teal-600 disabled:opacity-40';
 const isDataColumn = column => column.sortable !== false && !['actions', 'review', 'include', 'payment'].includes(column.key);
 
-export default function DataTable({ columns, rows = [], keyField = 'id', empty = 'No records found', pageSize = 10, loading = false, searchPlaceholder = 'Search records…', label = 'Records' }) {
+export default function DataTable({ columns, rows = [], keyField = 'id', empty = 'No records found', pageSize = 10, loading = false, searchPlaceholder = 'Search records…', label = 'Records', searchable = true }) {
   const id = useId();
   const [query, setQuery] = useState('');
   const [size, setSize] = useState(pageSize);
@@ -29,7 +29,7 @@ export default function DataTable({ columns, rows = [], keyField = 'id', empty =
   const changeSort = key => { setSort(previous => ({ key, direction: previous.key === key && previous.direction === 'asc' ? 'desc' : 'asc' })); setPage(1); };
   return <section aria-label={label} aria-busy={loading} className="data-table min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
     <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
-      <label className="relative block w-full sm:max-w-xs"><span className="sr-only">Search {label}</span><Search aria-hidden="true" size={17} className="absolute left-3 top-3 text-slate-400"/><input type="search" className={`${control} w-full pl-10`} placeholder={searchPlaceholder} value={query} onChange={event => { setQuery(event.target.value); setPage(1); }}/></label>
+      {searchable && <label className="relative block w-full sm:max-w-xs"><span className="sr-only">Search {label}</span><Search aria-hidden="true" size={17} className="absolute left-3 top-3 text-slate-400"/><input type="search" className={`${control} w-full pl-10`} placeholder={searchPlaceholder} value={query} onChange={event => { setQuery(event.target.value); setPage(1); }}/></label>}
       <label className="flex items-center gap-2 text-xs text-slate-500">Rows per page<select className={control} value={size} onChange={event => { setSize(Number(event.target.value)); setPage(1); }}>{sizes.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
     </div>
     <p id={`${id}-hint`} className="px-4 pt-3 text-xs text-slate-400 sm:hidden">Swipe horizontally to see all columns and actions.</p>

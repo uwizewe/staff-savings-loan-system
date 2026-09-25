@@ -336,7 +336,7 @@ public class RepaymentService {
             loan.totalInterest=loan.totalInterest.subtract(Money.amount(payment.interestWaived));
             loan.totalPayable=loan.totalPayable.subtract(Money.amount(payment.interestWaived)).add(Money.amount(payment.chargesPaid));
         }
-        if(loan.outstandingBalance.signum()==0) { loan.loanStatus=settlement?LoanStatus.CLOSED:LoanStatus.COMPLETED; loan.committedMemberId=null; }
+        if(loan.outstandingBalance.signum()==0) { loan.loanStatus=settlement?LoanStatus.CLOSED:LoanStatus.CLOSED; loan.committedMemberId=null; }
     }
 
     private BatchView batchView(RepaymentBatch batch) {

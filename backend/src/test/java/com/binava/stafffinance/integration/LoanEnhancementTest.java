@@ -19,6 +19,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class LoanEnhancementTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
+    @Autowired com.binava.stafffinance.loan.service.LoanScheduleUpgradeService upgrade;
     JsonNode call(String role,MockHttpServletRequestBuilder request,Object body,int expected) throws Exception {
         request.with(user(role.toLowerCase()).roles(role));
         if(body!=null) request.contentType("application/json").content(json.writeValueAsString(body));
@@ -32,13 +34,23 @@ class LoanEnhancementTest {
         long id=call("INITIATOR",post("/api/loans?categoryId="+category()),application(member()),200).get("id").asLong();
         call("INITIATOR",post("/api/loans/"+id+"/submit"),null,200);
         decide("LOAN",id,true);
-        call("INITIATOR",post("/api/loans/"+id+"/disburse"),Map.of("disbursementDate","2026-09-01","reference","Test"),200);
         return id;
     }
     void decide(String type,long id,boolean approve) throws Exception { call("APPROVER",post("/api/approvals/"+type+"/"+id+"/decision"),Map.of("approve",approve,"remarks","Reviewed"),200); }
     JsonNode loan(long id) throws Exception { return call("INITIATOR",get("/api/loans/"+id),null,200); }
     JsonNode rows(long id) throws Exception { return call("INITIATOR",get("/api/loans/"+id+"/schedule"),null,200); }
     void amount(String expected,JsonNode actual) { assertEquals(0,new BigDecimal(expected).compareTo(actual.decimalValue())); }
+
+    @Test void alreadyApprovedLoansActivateWithoutDisbursementAndKeepTheirSchedule() throws Exception {
+        long id=activeLoan();
+        JsonNode before=rows(id);
+        jdbc.update("update loans set loan_status='APPROVED', disbursement_date=null where id=?",id);
+        upgrade.upgrade();
+        assertEquals("ACTIVE",loan(id).get("loanStatus").asText());
+        assertEquals(before,rows(id));
+        upgrade.upgrade();
+        assertEquals(1,call("INITIATOR",get("/api/loans/"+id+"/schedule-history"),null,200).size());
+    }
 
     @Test void datesAreAuthoritativeAndCategoryChangesDoNotChangeLoans() throws Exception {
         long category=category(),member=member();
@@ -58,7 +70,7 @@ class LoanEnhancementTest {
         long id=activeLoan();
         JsonNode quote=call("INITIATOR",get("/api/loans/"+id+"/settlement-quote"),null,200);
         amount("1000",quote.get("remainingPrincipal")); amount("10",quote.get("applicableInterest")); amount("1010",quote.get("settlementAmount"));
-        long payment=call("INITIATOR",post("/api/loans/repayments"),Map.of("loanId",id,"paymentType","FULL_SETTLEMENT","amount",1010,"paymentDate","2026-09-23","remarks","Full settlement"),200).get("id").asLong();
+        long payment=call("INITIATOR",post("/api/loans/repayments"),Map.of("loanId",id,"paymentType","FULL_SETTLEMENT","amount",1010,"paymentDate",java.time.LocalDate.now().toString(),"remarks","Full settlement"),200).get("id").asLong();
         call("INITIATOR",post("/api/loans/repayments/"+payment+"/submit"),null,200);
         amount("1066.19",loan(id).get("outstandingBalance"));
         decide("FULL_SETTLEMENT",payment,false);
@@ -82,12 +94,12 @@ class LoanEnhancementTest {
         JsonNode items=call("APPROVER",get("/api/loans/repayment-batches/"+batch+"/items"),null,200);
         amount("78.85",items.get(0).get("principalPaid")); amount("10",items.get(0).get("interestPaid")); assertTrue(items.get(0).get("memberCode").asText().startsWith("VFC"));
         call("INITIATOR",post("/api/loans/repayment-batches/"+batch+"/submit"),null,200);
-        long other=call("INITIATOR",post("/api/loans/repayments"),Map.of("loanId",second,"scheduleId",secondRow,"paymentType","INSTALLMENT","amount",88.85,"paymentDate","2026-09-23"),200).get("id").asLong();
+        long other=call("INITIATOR",post("/api/loans/repayments"),Map.of("loanId",second,"scheduleId",secondRow,"paymentType","INSTALLMENT","amount",88.85,"paymentDate",java.time.LocalDate.now().toString()),200).get("id").asLong();
         call("INITIATOR",post("/api/loans/repayments/"+other+"/submit"),null,200); decide("REPAYMENT",other,true);
         call("APPROVER",post("/api/loans/repayment-batches/"+batch+"/decision"),Map.of("approve",true),400);
         amount("1066.19",loan(first).get("outstandingBalance"));
         for(var item:call("APPROVER",get("/api/loans/repayment-batches/"+batch+"/items"),null,200)) assertEquals("PENDING_APPROVAL",item.get("status").asText());
-        call("INITIATOR",post("/api/loans/repayments"),Map.of("loanId",second,"scheduleId",secondRow,"paymentType","INSTALLMENT","amount",88.85,"paymentDate","2026-09-23"),400);
+        call("INITIATOR",post("/api/loans/repayments"),Map.of("loanId",second,"scheduleId",secondRow,"paymentType","INSTALLMENT","amount",88.85,"paymentDate",java.time.LocalDate.now().toString()),400);
         decide("REPAYMENT_BATCH",batch,false);
         long good=call("INITIATOR",post("/api/loans/repayment-batches"),Map.of("period","2026-10","remarks","Corrected October deductions","items",List.of(Map.of("loanId",first,"scheduleId",firstRow,"amount",88.85))),200).get("id").asLong();
         call("INITIATOR",post("/api/loans/repayment-batches/"+good+"/submit"),null,200); decide("REPAYMENT_BATCH",good,true);

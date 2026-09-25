@@ -62,11 +62,11 @@ public class DashboardService {
         List<Member> memberList = personal
                 ? (user.member == null ? List.of() : List.of(user.member))
                 : members.findAll();
-        List<SavingsTransaction> savingList = personal && memberId != null
-                ? savings.findByMemberIdOrderByTransactionDateDesc(memberId)
+        List<SavingsTransaction> savingList = personal
+                ? (memberId == null ? List.of() : savings.findByMemberIdOrderByTransactionDateDesc(memberId))
                 : savings.findAll();
-        List<Loan> loanList = personal && memberId != null
-                ? loans.findByMemberIdOrderByApplicationDateDesc(memberId)
+        List<Loan> loanList = personal
+                ? (memberId == null ? List.of() : loans.findByMemberIdOrderByApplicationDateDesc(memberId))
                 : loans.findAll();
         List<LoanRepayment> repaymentList = personal
                 ? repayments.findAll().stream().filter(item -> memberId != null && item.loan.member.id.equals(memberId)).toList()
@@ -82,7 +82,7 @@ public class DashboardService {
         BigDecimal repaid = repaymentList.stream()
                 .filter(item -> item.workflowStatus == WorkflowStatus.APPROVED)
                 .map(item -> item.amount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal income = personal ? BigDecimal.ZERO : financeTotal(FinanceType.INCOME);
+        BigDecimal income = personal ? BigDecimal.ZERO : financeTotal(FinanceType.INCOME).add(repaymentIncome(repaymentList));
         BigDecimal expenses = personal ? BigDecimal.ZERO : financeTotal(FinanceType.EXPENSE);
         long withOutstanding = loanList.stream()
                 .filter(item -> item.loanStatus == LoanStatus.ACTIVE && item.outstandingBalance.signum() > 0)
@@ -98,6 +98,12 @@ public class DashboardService {
                 Money.amount(totalSavings), active.size(), Money.amount(outstanding), Money.amount(repaid),
                 Money.amount(income), Money.amount(expenses), withOutstanding, leftWithOutstanding,
                 pending.size(), trend(savingList, repaymentList, personal), pending.stream().limit(5).toList());
+    }
+
+    private BigDecimal repaymentIncome(List<LoanRepayment> records) {
+        return records.stream().filter(item -> item.workflowStatus == WorkflowStatus.APPROVED)
+                .map(item -> Money.amount(item.interestPaid).add(Money.amount(item.chargesPaid)))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private BigDecimal financeTotal(FinanceType type) {
@@ -134,7 +140,7 @@ public class DashboardService {
             row.put("month", month.toString());
             row.put("savings", Money.amount(saved));
             row.put("repayments", Money.amount(repaid));
-            row.put("income", Money.amount(income));
+            row.put("income", Money.amount(personal ? income : income.add(repaymentIncome(repaymentList.stream().filter(item -> YearMonth.from(item.paymentDate).equals(month)).toList()))));
             row.put("expenses", Money.amount(expense));
             rows.add(row);
         }

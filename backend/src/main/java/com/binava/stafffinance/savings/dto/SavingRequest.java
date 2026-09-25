@@ -8,4 +8,4 @@ public record SavingRequest(@NotNull Long memberId,
                      @NotNull @DecimalMin("0.01") BigDecimal amount,
                      @NotNull LocalDate transactionDate,
                      String reference,
-                     String description) {}
+                     @NotBlank @Size(max=500) String description) {}

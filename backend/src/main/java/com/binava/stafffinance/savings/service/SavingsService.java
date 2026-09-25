@@ -34,6 +34,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class SavingsService {
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
     private final SavingsRepository savings;
     private final SavingsBatchRepository batches;
     private final MemberService members;
@@ -143,7 +145,7 @@ public class SavingsService {
             transaction.amount = Money.amount(item.amount());
             transaction.transactionDate = period.atEndOfMonth();
             transaction.reference = "SB-" + batch.id + "-" + member.memberCode;
-            transaction.description = "Monthly savings for " + period;
+            transaction.description = period.format(java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy", java.util.Locale.ENGLISH)) + " Monthly Saving";
             transaction.createdBy = user;
             savings.save(transaction);
             total = total.add(transaction.amount);
@@ -167,6 +169,7 @@ public class SavingsService {
         SavingsTransaction transaction = require(id);
         assertStandalone(transaction);
         if (decision.approve() && transaction.savingType == SavingType.WITHDRAWAL) {
+            entityManager.lock(transaction.member, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
             validateWithdrawal(transaction.member.id, transaction.amount);
         }
         workflow.decide(transaction, decision.approve(), decision.remarks(),
